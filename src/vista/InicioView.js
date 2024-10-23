@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
+import { formatearFecha } from "../controlador/utils";
 
 const InicioView = () => {
     const [balances, setBalances] = useState([]);
     const [anios, setAnios] = useState([]);
     const [anioSeleccionado, setAnioSeleccionado] = useState('');
+    const [ingreso, setIngreso] = useState('');
+    const [fecha, setFecha] = useState('');
 
     useEffect(() => {
         const fetchAnios = async () => {
@@ -41,17 +44,53 @@ const InicioView = () => {
         fetchBalances();
     }, [anioSeleccionado]);
 
-    const formatearFecha = (fecha) => {
-        const [anio, mes] = fecha.split('-');
-        const mesesTexto = [
-            "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-            "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
-        ];
-
-        return {
-            anio,
-            mes: mesesTexto[parseInt(mes, 10) - 1]
+    const agregarBalance = async (e) => {
+        e.preventDefault();
+        const nuevoBalance = {
+            ingreso: parseFloat(ingreso),
+            fecha
         };
+
+        try {
+            const response = await fetch('http://localhost:8080/dmd/inicio/insertar', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(nuevoBalance)
+            });
+
+            if (!response.ok) {
+                throw new Error('Error al conectar con la URL para insertar datos');
+            }
+
+            const data = await response.json();
+            console.log('Balance agregado:', data);
+            setBalances(prevBalances => [...prevBalances, data]); // Actualiza la lista de balances
+            // Limpia el formulario
+            setIngreso('');
+            setFecha('');
+        } catch (error) {
+            console.error('Error al insertar nuevos datos', error);
+        }
+    };
+
+    const eliminarBalance = async (id_balance) => {
+        try {
+            const response = await fetch(`http://localhost:8080/dmd/inicio/eliminar/${id_balance}`, {
+                method: 'DELETE'
+            });
+
+            if (!response.ok) {
+                throw new Error('¡Error al llamar a la URL de eliminar balance!');
+            }
+            console.log('id_balance: ', id_balance);
+
+            // Filtra el balance eliminado del estado
+            setBalances(prevBalances => prevBalances.filter(balance => balance.id_balance !== id_balance));
+        } catch (error) {
+            console.error('Error al eliminar el balance', error);
+        }
     };
 
     return (
@@ -70,12 +109,14 @@ const InicioView = () => {
                 </select>
             </div>
 
-            <table className="table table-bordered">
+            {/* Tabla que muestra los datos */}
+            <table className="table table-bordered table-dark">
                 <thead>
                     <tr>
                         <th scope="col">Ingreso</th>
                         <th scope="col">Mes</th>
                         <th scope="col">Año</th>
+                        <th scope="col">Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -83,20 +124,37 @@ const InicioView = () => {
                         balances.map(balance => {
                             const { anio, mes } = formatearFecha(balance.fecha);
                             return (
-                                <tr key={balance.id}>
+                                <tr key={balance.id_balance}>
                                     <td>{balance.ingreso}€</td>
                                     <td>{mes}</td>
                                     <td>{anio}</td>
+                                    <td>
+                                        <button className="btn btn-danger" onClick={() => eliminarBalance(balance.id_balance)}>Eliminar</button>
+                                    </td>
                                 </tr>
                             );
                         })
                     ) : (
                         <tr>
-                            <td colSpan="3">No hay balances disponibles</td>
+                            <td colSpan="4">No hay balances disponibles</td>
                         </tr>
                     )}
                 </tbody>
             </table>
+
+            {/* Formulario para agregar nuevos datos */}
+            <h3>Agregar datos nuevos</h3>
+            <form onSubmit={agregarBalance}>
+                <div className="form-group">
+                    <label htmlFor="ingreso">Ingreso:</label>
+                    <input type="number" id="ingreso" className="form-control" value={ingreso} onChange={(e) => setIngreso(e.target.value)} required />
+                </div>
+                <div className="form-group">
+                    <label htmlFor="fecha">Fecha:</label>
+                    <input type="date" id="fecha" className="form-control" value={fecha} onChange={(e) => setFecha(e.target.value)} required />
+                </div>
+                <button type="submit" className="btn btn-primary">Agregar balance</button>
+            </form>
         </div>
     );
 };
